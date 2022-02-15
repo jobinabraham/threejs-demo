@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { BufferGeometry, Color } from "three";
-
 const Example = () => {
   const canvasRef = useRef(null);
 
