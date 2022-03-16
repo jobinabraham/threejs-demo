@@ -13,6 +13,7 @@ interface State {
   activeRoom: {
     username: string;
     messages: string[];
+    name?: string;
   } | null;
   formState: formState;
 }
@@ -21,10 +22,12 @@ const reducer = (
   state: State,
   action: {
     type: string;
-    room: {
-      username: string;
-      messages: string[];
+    room?: {
+      username?: string;
+      messages?: string[];
+      name?: string;
     };
+    rooms?: any[];
   }
 ): State => {
   switch (action.type) {
@@ -35,8 +38,26 @@ const reducer = (
       return { ...state, formState: formState.USERNAME };
 
     case "JOIN":
-      return { ...state, formState: formState.USERNAME };
+      return {
+        ...state,
+        activeRoom: action.room ? (action.room as any) : state.activeRoom,
+        formState: formState.ACTIVEROOM,
+      };
 
+    case "UPDATE_ROOM_LIST":
+      return {
+        ...state,
+        rooms: action.rooms ? [...action.rooms] : [...state.rooms],
+      };
+
+    case "CHAT":
+      return {
+        ...state,
+        activeRoom: action.room
+          ? { ...state.activeRoom, ...(action.room as any) }
+          : { ...state.activeRoom },
+        formState: formState.ACTIVEROOM,
+      };
     default:
       return state;
   }
@@ -45,25 +66,14 @@ const reducer = (
 const initialState: State = {
   rooms: [],
   activeRoom: null,
-  formState: formState.LISTROOMS,
+  formState: formState.USERNAME,
 };
+const socket = io();
 
 export default () => {
-  const socket = io();
-  const [messages, setMessages] = useState<String[]>([]);
+  // const [socket, setSocket] = useState<any>();
+  // const [messages, setMessages] = useState<String[]>([]);
   const [state, dispatch] = useReducer(reducer, initialState);
-  console.log("state.rooms", state.rooms);
-  const attachEvents = () => {
-    socket.on("chat message", (data) => {
-      console.log("chat message", data);
-      console.log("New list ", [...messages, data]);
-      setMessages([...messages, data]);
-    });
-
-    socket.on("rooms", (data) => {
-      // Populate roomlist here
-    });
-  };
 
   const getFormValue = (target: HTMLFormElement, key: string): string => {
     const data: any = new FormData(target);
@@ -75,6 +85,10 @@ export default () => {
     e.preventDefault();
     const username = getFormValue(e.target as HTMLFormElement, "username");
     socket.emit("set username", username);
+    dispatch({
+      type: "LISTROOMS",
+    });
+
     return false;
   };
 
@@ -82,7 +96,7 @@ export default () => {
     // Emit room here
     e.preventDefault();
     const room = getFormValue(e.target as HTMLFormElement, "newRoom");
-    console.log("Room in submit", room);
+
     socket.emit("new room", room);
     return false;
   };
@@ -91,34 +105,75 @@ export default () => {
     e.preventDefault(); //prevents page reloading
     const data: any = new FormData(e.target as HTMLFormElement);
     const chat = data.get("chat");
-    socket.emit("chat message", chat);
+
+    console.log("chat :", chat, state, state.activeRoom?.name);
+    socket.emit("chat message", { room: state.activeRoom?.name, msg: chat });
     return false;
   };
 
   const joinRoom = (room: string) => {
-    console.log("room", room);
+    socket.emit("join room", room);
+  };
+
+  const onChatMessageRecieved = (msg: any) => {
+    console.log("msg :", msg);
+
+    const messages = state.activeRoom?.messages
+      ? [...state.activeRoom?.messages, msg]
+      : [];
+
+    dispatch({
+      type: "CHAT",
+      room: {
+        ...state.activeRoom,
+        messages,
+      },
+    });
+  };
+
+  const attachEvents = () => {
+    socket.on("rooms", (data: any) => {
+      // Populate roomlist here
+
+      dispatch({
+        type: "UPDATE_ROOM_LIST",
+        rooms: Object.keys(data),
+      });
+    });
+
+    socket.on("joined room", (room: any) => {
+      console.log("joined room", room);
+
+      dispatch({
+        type: "JOIN",
+        room: {
+          username: "Something",
+          messages: [],
+          name: room,
+        },
+      });
+    });
   };
 
   useEffect(() => {
     fetch("/api/socketio").finally(() => {
-      socket.on("connect", () => {
-        console.log("connect");
+      socket.on("connect", () => {});
+
+      socket.on("hello", (data) => {});
+
+      socket.on("a user connected", (msg) => {
+        //
       });
 
-      socket.on("hello", (data) => {
-        console.log("kello", data);
-      });
-
-      socket.on("a user connected", () => {
-        console.log("a user connected");
-      });
-
-      socket.on("disconnect", () => {
-        console.log("disconnect");
-      });
+      socket.on("disconnect", () => {});
       attachEvents();
     });
-  }, [attachEvents]); // Added [] as useEffect filter so it will be executed only once, when component is mounted
+    // setSocket(socket);
+  }, []); // Added [] as useEffect filter so it will be executed only once, when component is mounted
+
+  useEffect(() => {
+    socket.on("chat message", onChatMessageRecieved);
+  }, [state.activeRoom?.messages]);
 
   return (
     <>
@@ -156,7 +211,13 @@ export default () => {
         </ul>
       )}
 
-      {state.activeRoom && <InfoForm name="chat" onSubmit={onSubmitChat} />}
+      {state.activeRoom && (
+        <InfoForm
+          name="chat"
+          onSubmit={onSubmitChat}
+          placeholder="Enter Chat here"
+        />
+      )}
     </>
   );
 };
