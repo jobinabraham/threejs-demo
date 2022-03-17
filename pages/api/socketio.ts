@@ -55,7 +55,6 @@ const ioHandler = (req: any, res: any) => {
         // getRooms(io, "new room");
         const roomsL = getRooms(io, "connected");
         io.emit("rooms", roomsL);
-        socket.emit("joined room", room);
       });
 
       socket.on("join room", (room: any) => {
