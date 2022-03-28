@@ -153,7 +153,7 @@ const FbxLoaderExample = (props: Props) => {
         loadNextAnim(loader);
       } else {
         setAnims(undefined);
-        setActionName("Pointing Gesture");
+        setActionName("Idle");
         animate();
       }
     });
@@ -182,11 +182,14 @@ const FbxLoaderExample = (props: Props) => {
     }
   }, [renderer, cameraInst]);
 
-  // const tgo;
-
+  const toggleAction = () => {
+    if (action === "Idle") setActionName("Pointing Gesture");
+    if (action === "Pointing Gesture") setActionName("Idle");
+  };
   return (
     <>
       <canvas ref={canvasRef} />
+      <button onClick={toggleAction}>Change Action</button>
     </>
   );
 };
